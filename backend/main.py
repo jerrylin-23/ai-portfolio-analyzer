@@ -501,43 +501,50 @@ async def get_market_feed():
     except Exception as e:
         print(f"newsfilter.io API failed: {e}")
     
-    # Fallback to RSS if newsfilter fails
+    # Fallback to Google News RSS if newsfilter fails (very reliable)
     if not all_news:
         import feedparser
         
-        rss_feeds = [
-            {"url": "https://www.cnbc.com/id/100003114/device/rss/rss.html", "source": "CNBC"},
-            {"url": "https://feeds.marketwatch.com/marketwatch/topstories/", "source": "MarketWatch"},
-        ]
+        # Google News RSS - works reliably on all cloud platforms
+        google_news_url = "https://news.google.com/rss/search?q=stock+market+OR+wall+street+OR+nasdaq+OR+dow+jones+when:1d&hl=en-US&gl=US&ceid=US:en"
         
-        for feed_info in rss_feeds:
-            try:
-                feed = feedparser.parse(feed_info["url"])
-                for entry in feed.entries[:5]:
-                    time_str = ""
-                    if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                        try:
-                            from time import mktime
-                            dt = datetime.fromtimestamp(mktime(entry.published_parsed))
-                            time_str = dt.strftime("%b %d, %I:%M %p")
-                        except:
-                            pass
-                    
-                    all_news.append({
-                        "account": "@MarketNews",
-                        "display_name": feed_info["source"],
-                        "text": entry.get("title", "")[:280],
-                        "time": time_str,
-                        "link": entry.get("link", "#"),
-                        "symbols": ""
-                    })
-            except Exception as e:
-                print(f"RSS fallback failed: {e}")
+        try:
+            feed = feedparser.parse(google_news_url)
+            print(f"Google News returned {len(feed.entries)} articles")
+            
+            for entry in feed.entries[:15]:
+                time_str = ""
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    try:
+                        from time import mktime
+                        dt = datetime.fromtimestamp(mktime(entry.published_parsed))
+                        time_str = dt.strftime("%b %d, %I:%M %p")
+                    except:
+                        pass
+                
+                # Extract source from title (format: "Title - Source")
+                title = entry.get("title", "")
+                source = "News"
+                if " - " in title:
+                    parts = title.rsplit(" - ", 1)
+                    title = parts[0]
+                    source = parts[1] if len(parts) > 1 else "News"
+                
+                all_news.append({
+                    "account": f"@{source.replace(' ', '')}",
+                    "display_name": source,
+                    "text": title[:280],
+                    "time": time_str,
+                    "link": entry.get("link", "#"),
+                    "symbols": ""
+                })
+        except Exception as e:
+            print(f"Google News RSS failed: {e}")
     
     return {
         "articles": all_news[:20], 
         "fetched_at": datetime.now().isoformat(),
-        "source": "newsfilter.io" if all_news else "rss"
+        "source": "newsfilter.io" if len(all_news) > 0 and "newsfilter" in str(all_news[0].get("account", "")).lower() else "google_news"
     }
 
 
