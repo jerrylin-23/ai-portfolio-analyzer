@@ -599,7 +599,9 @@ async def get_market_context():
         return {"summary": "Market context unavailable", "error": "No API key"}
     
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    # Try multiple models for quota resilience (each has separate limits)
+    GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
     
     # Get recent news for context
     recent_news = []
@@ -715,21 +717,30 @@ Based on the ACTUAL upcoming events, earnings, and headlines above, provide a ma
 
 Be specific about dates. Focus on FUTURE events only. Keep it concise."""
 
-    try:
-        response = model.generate_content(prompt)
-        summary = response.text
-        
-        # Cache the result
-        market_context_cache["summary"] = summary
-        market_context_cache["generated_at"] = datetime.now()
-        
-        return {
-            "summary": summary,
-            "cached": False,
-            "generated_at": datetime.now().isoformat()
-        }
-    except Exception as e:
-        return {"summary": f"Market context unavailable: {str(e)}", "error": str(e)}
+    # Try each model until one works
+    last_error = None
+    for model_name in GEMINI_MODELS:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            summary = response.text
+            
+            # Cache the result
+            market_context_cache["summary"] = summary
+            market_context_cache["generated_at"] = datetime.now()
+            
+            return {
+                "summary": summary,
+                "cached": False,
+                "generated_at": datetime.now().isoformat(),
+                "model_used": model_name
+            }
+        except Exception as e:
+            last_error = str(e)
+            print(f"Model {model_name} failed: {e}")
+            continue
+    
+    return {"summary": f"Market context unavailable: {last_error}", "error": last_error}
 
 
 @app.get("/api/portfolio-analysis")
@@ -746,7 +757,9 @@ async def get_portfolio_analysis():
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
     
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    # Try multiple models for quota resilience (each has separate limits)
+    GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
     
     # Get portfolio data
     portfolio_summary = []
@@ -837,11 +850,25 @@ async def get_portfolio_analysis():
 
 Be direct and specific. Reference actual holdings and market events."""
 
-    try:
-        response = model.generate_content(prompt)
-        analysis = response.text
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
+    # Try each model until one works
+    analysis = None
+    model_used = None
+    last_error = None
+    
+    for model_name in GEMINI_MODELS:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            analysis = response.text
+            model_used = model_name
+            break
+        except Exception as e:
+            last_error = str(e)
+            print(f"Model {model_name} failed: {e}")
+            continue
+    
+    if not analysis:
+        raise HTTPException(status_code=500, detail=f"All Gemini models failed: {last_error}")
     
     return {
         "analysis": analysis,
@@ -850,6 +877,7 @@ Be direct and specific. Reference actual holdings and market events."""
         "holdings_count": len(portfolio_summary),
         "news_count": len(recent_news),
         "has_market_context": market_context_cache["summary"] is not None,
+        "model_used": model_used,
         "generated_at": datetime.now().isoformat()
     }
 
