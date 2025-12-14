@@ -1,0 +1,27 @@
+services:
+  # Backend API
+  - type: web
+    name: ai-portfolio-analyzer-api
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # Frontend Static Site
+  - type: web
+    name: ai-portfolio-analyzer
+    runtime: static
+    buildCommand: echo "No build needed"
+    staticPublishPath: frontend
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache

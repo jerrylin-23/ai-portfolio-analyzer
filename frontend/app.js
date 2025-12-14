@@ -1,6 +1,9 @@
 // AI Portfolio Analyzer - Frontend App
 
-const API_BASE = 'http://localhost:8001';
+// Auto-detect API URL based on environment
+const API_BASE = window.location.hostname === 'localhost'
+    ? 'http://localhost:8001'
+    : 'https://ai-portfolio-analyzer-api.onrender.com';
 let selectedSymbol = null;
 
 // ===== Initialize =====
