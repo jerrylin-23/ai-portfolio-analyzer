@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Portfolio Analyzer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Layout Container -->
+        <div class="content-layout">
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Header with P&L -->
+                <header class="header">
+                    <div class="logo">
+                        <span class="logo-icon">📊</span>
+                        <h1>AI Portfolio Analyzer</h1>
+                    </div>
+                    <div class="portfolio-summary" id="portfolioSummary">
+                        <div class="summary-item">
+                            <span class="label">Total Value</span>
+                            <span class="value" id="totalValue">$0.00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Daily Change</span>
+                            <span class="value" id="dailyChange">$0.00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Total P/L</span>
+                            <span class="value" id="totalPL">$0.00</span>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Add Stock Section -->
+                <section class="add-stock-section">
+                    <div class="add-stock-form">
+                        <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL)"
+                            maxlength="10">
+                        <input type="number" id="sharesInput" placeholder="Shares" value="1" min="0.01" step="0.01">
+                        <input type="number" id="costInput" placeholder="Avg Cost ($)" min="0" step="0.01">
+                        <button id="addBtn" onclick="addStock()">
+                            <span>➕</span> Add to Portfolio
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Holdings Grid -->
+                <section class="holdings-section">
+                    <div class="holdings-header">
+                        <h2>📈 Your Holdings</h2>
+                        <button class="ai-analyze-btn" onclick="getPortfolioAnalysis()">
+                            <span>🤖</span> AI Analysis
+                        </button>
+                    </div>
+
+                    <!-- AI Analysis Display -->
+                    <div class="ai-analysis-container" id="aiAnalysis" style="display: none;">
+                        <div class="ai-analysis-header">
+                            <span>🤖 Gemini Analysis</span>
+                            <button class="close-btn"
+                                onclick="document.getElementById('aiAnalysis').style.display='none'">✕</button>
+                        </div>
+                        <div class="ai-analysis-content" id="aiAnalysisContent">
+                            Loading...
+                        </div>
+                    </div>
+                    <div class="holdings-grid" id="holdingsGrid">
+                        <div class="empty-state">
+                            <span class="empty-icon">📭</span>
+                            <p>No stocks in your portfolio</p>
+                            <p class="hint">Add stocks above to get started!</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- News & Sentiment Section -->
+                <section class="news-section" id="newsSection" style="display: none;">
+                    <div class="news-header">
+                        <h2>📰 News & AI Sentiment</h2>
+                        <div class="sentiment-badge" id="overallSentiment"></div>
+                    </div>
+                    <div class="news-list" id="newsList"></div>
+                </section>
+            </main>
+            <!-- Sidebar with Sectors and News -->
+            <aside class="main-sidebar">
+                <!-- Sectors Section -->
+                <div class="sidebar-section">
+                    <div class="sidebar-header">
+                        <h3>🏆 Sectors</h3>
+                        <button class="refresh-btn" onclick="loadSectors()">🔄</button>
+                    </div>
+                    <div class="sectors-scroll" id="sectorsGrid">
+                        <div class="feed-loading">
+                            <div class="spinner-small"></div>
+                            <p>Loading sectors...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- News Section -->
+                <div class="sidebar-section news-section-sidebar">
+                    <div class="sidebar-header">
+                        <h3>📰 Live News</h3>
+                        <button class="refresh-btn" onclick="loadNews()">🔄</button>
+                    </div>
+                    <div class="news-scroll" id="newsScroll">
+                        <div class="feed-loading">
+                            <div class="spinner-small"></div>
+                            <p>Loading news...</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by Gemini AI • Stock data from Finnhub</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p id="loadingText">Loading...</p>
+    </div>
+
+    <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
