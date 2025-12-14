@@ -148,6 +148,30 @@ async def get_portfolio():
     }
 
 
+@app.get("/api/portfolio/prices")
+async def get_portfolio_prices(symbols: str):
+    """Get live prices for a comma-separated list of symbols (for localStorage-based portfolios)"""
+    symbol_list = [s.strip().upper() for s in symbols.split(',') if s.strip()]
+    
+    if not symbol_list:
+        return {"prices": {}}
+    
+    prices = {}
+    for symbol in symbol_list:
+        try:
+            data = get_stock_info(symbol)
+            if data:
+                prices[symbol] = {
+                    "price": data.get("price", 0),
+                    "name": data.get("name", symbol),
+                    "change_percent": data.get("change_percent", 0)
+                }
+        except:
+            prices[symbol] = {"price": 0, "name": symbol, "change_percent": 0}
+    
+    return {"prices": prices}
+
+
 @app.post("/api/portfolio/add")
 async def add_to_portfolio(symbol: str, shares: float = 1, cost_average: float = 0):
     """Add a stock to portfolio"""

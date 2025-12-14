@@ -6,6 +6,18 @@ const API_BASE = window.location.hostname === 'localhost'
     : 'https://ai-portfolio-analyzer-api.onrender.com';
 let selectedSymbol = null;
 
+// ===== LocalStorage Portfolio Management =====
+const PORTFOLIO_KEY = 'ai_portfolio_holdings';
+
+function getLocalPortfolio() {
+    const data = localStorage.getItem(PORTFOLIO_KEY);
+    return data ? JSON.parse(data) : {};
+}
+
+function saveLocalPortfolio(portfolio) {
+    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(portfolio));
+}
+
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
     loadPortfolio();
@@ -18,7 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') addStock();
     });
 
-    // Auto-refresh: sectors every 60s, news every 2 min, market context every 10 min
+    // Auto-refresh: portfolio every 30s, sectors every 60s, news every 2 min
+    setInterval(loadPortfolio, 30000);
     setInterval(loadSectors, 60000);
     setInterval(loadNews, 120000);
     setInterval(loadMarketContext, 600000);
@@ -34,14 +47,55 @@ function hideLoading() {
     document.getElementById('loadingOverlay').classList.remove('active');
 }
 
-// ===== Portfolio Functions =====
+// ===== Portfolio Functions (localStorage-based) =====
 async function loadPortfolio() {
     try {
-        const response = await fetch(`${API_BASE}/api/portfolio`);
-        const data = await response.json();
+        const localPortfolio = getLocalPortfolio();
+        const symbols = Object.keys(localPortfolio);
 
-        updatePortfolioSummary(data);
-        renderHoldings(data.holdings);
+        if (symbols.length === 0) {
+            updatePortfolioSummary({ total_value: 0, daily_change: 0, total_pl: 0, holdings: [] });
+            renderHoldings([]);
+            return;
+        }
+
+        // Fetch current prices for all holdings
+        const response = await fetch(`${API_BASE}/api/portfolio/prices?symbols=${symbols.join(',')}`);
+        const priceData = await response.json();
+
+        // Merge local holdings with live prices
+        let totalValue = 0;
+        let dailyChange = 0;
+        let totalPL = 0;
+
+        const holdings = symbols.map(symbol => {
+            const local = localPortfolio[symbol];
+            const live = priceData.prices?.[symbol] || {};
+            const price = live.price || 0;
+            const value = price * local.shares;
+            const costBasis = local.cost_average * local.shares;
+            const pl = costBasis > 0 ? value - costBasis : 0;
+            const dayChange = (live.change_percent || 0) / 100 * value;
+
+            totalValue += value;
+            dailyChange += dayChange;
+            totalPL += pl;
+
+            return {
+                symbol,
+                name: live.name || symbol,
+                shares: local.shares,
+                cost_average: local.cost_average,
+                price,
+                value,
+                pl,
+                pl_percent: costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0,
+                change_percent: live.change_percent || 0
+            };
+        });
+
+        updatePortfolioSummary({ total_value: totalValue, daily_change: dailyChange, total_pl: totalPL, holdings });
+        renderHoldings(holdings);
     } catch (error) {
         console.error('Error loading portfolio:', error);
     }
@@ -175,14 +229,16 @@ async function addStock() {
     showLoading(`Adding ${symbol}...`);
 
     try {
-        const response = await fetch(`${API_BASE}/api/portfolio/add?symbol=${symbol}&shares=${shares}&cost_average=${costAverage}`, {
-            method: 'POST'
-        });
-
+        // Validate symbol by fetching price
+        const response = await fetch(`${API_BASE}/api/stock/${symbol}`);
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to add stock');
+            throw new Error(`Invalid symbol: ${symbol}`);
         }
+
+        // Save to localStorage
+        const portfolio = getLocalPortfolio();
+        portfolio[symbol] = { shares, cost_average: costAverage };
+        saveLocalPortfolio(portfolio);
 
         symbolInput.value = '';
         sharesInput.value = '1';
@@ -210,23 +266,12 @@ async function updateHolding(symbol, event) {
         return;
     }
 
-    showLoading(`Updating ${symbol}...`);
+    // Update localStorage
+    const portfolio = getLocalPortfolio();
+    portfolio[symbol] = { shares, cost_average: costAverage };
+    saveLocalPortfolio(portfolio);
 
-    try {
-        const response = await fetch(`${API_BASE}/api/portfolio/update/${symbol}?shares=${shares}&cost_average=${costAverage}`, {
-            method: 'PUT'
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to update holding');
-        }
-
-        await loadPortfolio();
-    } catch (error) {
-        alert(error.message);
-    } finally {
-        hideLoading();
-    }
+    await loadPortfolio();
 }
 
 async function removeStock(symbol, event) {
@@ -234,29 +279,17 @@ async function removeStock(symbol, event) {
 
     if (!confirm(`Remove ${symbol} from portfolio?`)) return;
 
-    showLoading(`Removing ${symbol}...`);
+    // Remove from localStorage
+    const portfolio = getLocalPortfolio();
+    delete portfolio[symbol];
+    saveLocalPortfolio(portfolio);
 
-    try {
-        const response = await fetch(`${API_BASE}/api/portfolio/remove/${symbol}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to remove stock');
-        }
-
-        if (selectedSymbol === symbol) {
-            selectedSymbol = null;
-            document.getElementById('newsSection').style.display = 'none';
-        }
-
-        await loadPortfolio();
-
-    } catch (error) {
-        alert(error.message);
-    } finally {
-        hideLoading();
+    if (selectedSymbol === symbol) {
+        selectedSymbol = null;
+        document.getElementById('newsSection').style.display = 'none';
     }
+
+    await loadPortfolio();
 }
 
 // ===== News & Sentiment =====
