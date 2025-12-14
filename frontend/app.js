@@ -522,7 +522,11 @@ async function getPortfolioAnalysis() {
     `;
 
     try {
-        const response = await fetch(`${API_BASE}/api/portfolio-analysis`);
+        // Get portfolio symbols from localStorage
+        const localPortfolio = getLocalPortfolio();
+        const symbols = Object.keys(localPortfolio).join(',');
+
+        const response = await fetch(`${API_BASE}/api/portfolio-analysis?symbols=${encodeURIComponent(symbols)}`);
 
         if (!response.ok) {
             throw new Error('Analysis failed');

@@ -748,8 +748,13 @@ Be specific about dates. Focus on FUTURE events only. Keep it concise."""
 
 
 @app.get("/api/portfolio-analysis")
-async def get_portfolio_analysis():
-    """Get AI analysis of portfolio with real-time news context"""
+async def get_portfolio_analysis(symbols: str = ""):
+    """Get AI analysis of portfolio with real-time news context
+    
+    Args:
+        symbols: Comma-separated list of symbols from frontend localStorage.
+                 If empty, falls back to backend portfolio.json
+    """
     import google.generativeai as genai
     import os
     import requests
@@ -766,12 +771,22 @@ async def get_portfolio_analysis():
     # Models to try (each has separate quota per key)
     GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro']
     
-    # Get portfolio data
+    # Get portfolio data from frontend symbols or fallback to backend JSON
+    portfolio_to_use = {}
+    if symbols:
+        # Parse symbols from frontend localStorage
+        symbol_list = [s.strip().upper() for s in symbols.split(',') if s.strip()]
+        for sym in symbol_list:
+            portfolio_to_use[sym] = {"shares": 1, "cost_average": 0}  # Basic placeholder
+    else:
+        # Fallback to backend portfolio.json
+        portfolio_to_use = portfolio
+    
     portfolio_summary = []
     total_value = 0
     sector_exposure = {}
     
-    for symbol, holding in portfolio.items():
+    for symbol, holding in portfolio_to_use.items():
         try:
             stock_data = get_stock_info(symbol)
             current_price = stock_data.get("price", 0)
