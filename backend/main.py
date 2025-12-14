@@ -541,10 +541,17 @@ async def get_market_feed():
         except Exception as e:
             print(f"Google News RSS failed: {e}")
     
+    # Ultimate fallback - static placeholder if everything fails
+    if not all_news:
+        all_news = [
+            {"account": "@MarketUpdate", "display_name": "Market Update", "text": "Markets are open. Check individual stocks for latest prices.", "time": datetime.now().strftime("%I:%M %p"), "link": "#", "symbols": ""},
+            {"account": "@TradingView", "display_name": "Trading Tip", "text": "Monitor your sector exposure and upcoming earnings for risk management.", "time": "", "link": "#", "symbols": ""},
+        ]
+    
     return {
         "articles": all_news[:20], 
         "fetched_at": datetime.now().isoformat(),
-        "source": "newsfilter.io" if len(all_news) > 0 and "newsfilter" in str(all_news[0].get("account", "")).lower() else "google_news"
+        "source": "newsfilter.io" if len(all_news) > 2 and "newsfilter" in str(all_news[0].get("account", "")).lower() else "google_news"
     }
 
 
