@@ -379,7 +379,7 @@ async function loadMarketNews() {
         const response = await fetch(`${API_BASE}/api/market-feed`);
         const data = await response.json();
 
-        if (!data.tweets || data.tweets.length === 0) {
+        if (!data.articles || data.articles.length === 0) {
             feedContainer.innerHTML = `
                 <div class="feed-empty">
                     <p>No news available</p>
@@ -389,7 +389,7 @@ async function loadMarketNews() {
             return;
         }
 
-        feedContainer.innerHTML = data.tweets.map(item => `
+        feedContainer.innerHTML = data.articles.map(item => `
             <a href="${item.link}" target="_blank" class="news-item">
                 <div class="news-source">${item.display_name}</div>
                 <div class="news-headline">${item.text}</div>
