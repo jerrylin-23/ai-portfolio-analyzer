@@ -16,6 +16,16 @@ A real-time stock portfolio tracker with AI-powered analysis using Google Gemini
 - **Earnings Calendar** - Upcoming earnings for 30+ megacaps & sector leaders
 - **Real-time News** - Live headlines from newsfilter.io
 
+The **AI Portfolio Analyzer** is fully deployed on Render.
+
+### Live Website
+
+View the base URL for the deployed application here. This link serves as the backend API for the project:
+
+[![View Live Website on Render](https://img.shields.io/badge/View%20Live%20Website-Render-blue?style=for-the-badge&logo=render&logoColor=white)](https://ai-portfolio-analyzer.onrender.com)
+
+> **⚠️ Performance Disclaimer:** Due to the resource constraints of the free-tier Render deployment, the service may take time to spin up (cold start latency), and AI analysis calls (Gemini API) can take **5-10 seconds** to complete. For the **best and fastest user experience**, we highly recommend running the application locally using the **Quick Start** guide.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
