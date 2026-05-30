@@ -6,6 +6,10 @@ A real-time stock portfolio tracker with AI-powered analysis using Google Gemini
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
 ![Gemini](https://img.shields.io/badge/Gemini-2.5-purple)
 
+## 🚀 Live Demo
+
+**Deployed on Heroku:** [https://jerry-portfolio-analyzer-2ee637459174.herokuapp.com/](https://jerry-portfolio-analyzer-2ee637459174.herokuapp.com/)
+
 ## ✨ Features
 
 - **Real-time Portfolio Tracking** - Live stock prices via yfinance
