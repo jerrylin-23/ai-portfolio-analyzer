@@ -66,18 +66,8 @@ def save_portfolio():
 # Load portfolio on startup
 load_portfolio()
 
-# Mount frontend static files
+# Initialize frontend path
 frontend_path = Path(__file__).parent.parent / "frontend"
-if frontend_path.exists():
-    app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
-
-@app.get("/")
-async def root():
-    """Serve the frontend"""
-    index_path = frontend_path / "index.html"
-    if index_path.exists():
-        return FileResponse(str(index_path))
-    return {"message": "AI Portfolio Analyzer API", "status": "running"}
 
 
 @app.get("/api/portfolio")
@@ -908,6 +898,10 @@ Be direct and specific. Reference actual holdings and market events."""
         "generated_at": datetime.now().isoformat()
     }
 
+
+# Mount frontend static files at root (after all API routes)
+if frontend_path.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
 
 
 if __name__ == "__main__":
