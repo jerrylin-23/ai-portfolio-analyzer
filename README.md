@@ -130,5 +130,3 @@ ai-portfolio-analyzer/
 MIT License - feel free to use and modify!
 
 ---
-
-Built with ❤️ using Gemini AI
