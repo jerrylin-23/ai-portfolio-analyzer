@@ -860,6 +860,21 @@ function renderChartInstance(historyData, range) {
                     cornerRadius: 8,
                     displayColors: false,
                     callbacks: {
+                        title: function(context) {
+                            const index = context[0].dataIndex;
+                            const d = historyData[index];
+                            if (!d) return '';
+                            const date = new Date(d.timestamp);
+                            if (range === '1d') {
+                                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Today';
+                            } else if (range === '1w') {
+                                const dateStr = date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+                                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                return `${dateStr}, ${timeStr}`;
+                            } else {
+                                return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                            }
+                        },
                         label: function(context) {
                             return '$' + context.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         }
@@ -910,7 +925,9 @@ function formatChartDate(timestamp, range) {
     if (range === '1d') {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (range === '1w') {
-        return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+        const weekday = date.toLocaleDateString([], { weekday: 'short' });
+        const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${weekday} ${time}`;
     } else {
         return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
