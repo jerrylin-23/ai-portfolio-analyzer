@@ -799,6 +799,22 @@ window.changeChartTimeframe = async function(range, btn) {
     await updatePortfolioHistoryChart(range);
 };
 
+function getNYTime(date) {
+    try {
+        const nyHourStr = date.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false });
+        const nyMinuteStr = date.toLocaleString('en-US', { timeZone: 'America/New_York', minute: 'numeric' });
+        return {
+            hour: parseInt(nyHourStr, 10),
+            minute: parseInt(nyMinuteStr, 10)
+        };
+    } catch (e) {
+        return {
+            hour: date.getHours(),
+            minute: date.getMinutes()
+        };
+    }
+}
+
 function renderChartInstance(historyData, range) {
     const canvas = document.getElementById('portfolioChart');
     if (!canvas) return;
@@ -814,20 +830,67 @@ function renderChartInstance(historyData, range) {
     let lastDayStr = null;
     let lastMondayStr = null;
     
+    // NY target times for 1D chart: 9:30 AM, 11:00 AM, 1:00 PM, 3:00 PM, 4:00 PM
+    const targetNYTimes = [
+        { hour: 9, minute: 30 },
+        { hour: 11, minute: 0 },
+        { hour: 13, minute: 0 },
+        { hour: 15, minute: 0 },
+        { hour: 16, minute: 0 }
+    ];
+    
+    const dayTickIndices = [];
+    
     historyData.forEach((d, idx) => {
         const date = new Date(d.timestamp);
         const dayStr = date.toDateString();
+        
+        // 1W transitions
         if (dayStr !== lastDayStr) {
             dayChangeIndices.push(idx);
             lastDayStr = dayStr;
         }
-        if (date.getDay() === 1) { // Monday
+        
+        // 1M Mondays
+        if (date.getDay() === 1) { 
             if (dayStr !== lastMondayStr) {
                 mondayIndices.push(idx);
                 lastMondayStr = dayStr;
             }
         }
     });
+    
+    // 1D specific tick calculations in NY time
+    if (range === '1d') {
+        targetNYTimes.forEach(target => {
+            let closestIdx = -1;
+            let minDiff = Infinity;
+            historyData.forEach((d, idx) => {
+                const date = new Date(d.timestamp);
+                const nyTime = getNYTime(date);
+                const currentMinutes = nyTime.hour * 60 + nyTime.minute;
+                const targetMinutes = target.hour * 60 + target.minute;
+                const diff = Math.abs(currentMinutes - targetMinutes);
+                
+                if (diff < minDiff && diff <= 10) { // must be within 10 minutes
+                    minDiff = diff;
+                    closestIdx = idx;
+                }
+            });
+            if (closestIdx !== -1 && !dayTickIndices.includes(closestIdx)) {
+                dayTickIndices.push(closestIdx);
+            }
+        });
+        
+        // Frame the chart
+        if (historyData.length > 0 && !dayTickIndices.includes(0)) {
+            dayTickIndices.push(0);
+        }
+        if (historyData.length > 0 && !dayTickIndices.includes(historyData.length - 1)) {
+            dayTickIndices.push(historyData.length - 1);
+        }
+        dayTickIndices.sort((a, b) => a - b);
+    }
     
     const labels = historyData.map(d => formatChartDate(d.timestamp, range));
     const values = historyData.map(d => d.value);
@@ -915,7 +978,7 @@ function renderChartInstance(historyData, range) {
                         },
                         maxRotation: 0,
                         minRotation: 0,
-                        autoSkip: range !== '1w',
+                        autoSkip: false,
                         callback: function(value, index) {
                             const dataIndex = value;
                             if (dataIndex >= historyData.length) return '';
@@ -924,7 +987,10 @@ function renderChartInstance(historyData, range) {
                             
                             const date = new Date(d.timestamp);
                             if (range === '1d') {
-                                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                                if (dayTickIndices.includes(dataIndex)) {
+                                    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                                }
+                                return '';
                             } else if (range === '1w') {
                                 if (dayChangeIndices.includes(dataIndex)) {
                                     return date.toLocaleDateString([], { weekday: 'short' });
