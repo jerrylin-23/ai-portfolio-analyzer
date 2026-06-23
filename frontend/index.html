@@ -68,6 +68,30 @@
                     </div>
                 </div>
 
+                <div class="preview-chart-card">
+                    <div class="chart-card-header">
+                        <div class="chart-title-area">
+                            <span class="chart-label">Performance</span>
+                            <div class="chart-metrics">
+                                <span class="chart-change" id="chartValueChange">+$0.00 (0.00%)</span>
+                            </div>
+                        </div>
+                        <div class="chart-timeframe-selectors">
+                            <button class="timeframe-btn active" onclick="changeChartTimeframe('1d', this)">1D</button>
+                            <button class="timeframe-btn" onclick="changeChartTimeframe('1w', this)">1W</button>
+                            <button class="timeframe-btn" onclick="changeChartTimeframe('1m', this)">1M</button>
+                        </div>
+                    </div>
+                    <div class="chart-content">
+                        <div class="chart-canvas-container">
+                            <canvas id="portfolioChart"></canvas>
+                        </div>
+                        <div id="chartEmptyState" class="chart-empty-state" style="display: none;">
+                            <p>Add holdings to see performance history.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="preview-allocation-card">
                     <div class="chart-heading">
                         <span>Live allocation</span>
@@ -216,6 +240,7 @@
         <p id="loadingText">Loading...</p>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
     <script src="app.js?v=parchment-ui-5"></script>
 </body>

@@ -6,8 +6,9 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from pydantic import BaseModel
 import uvicorn
 from pathlib import Path
 import json
@@ -211,6 +212,122 @@ async def get_portfolio_prices(symbols: str):
             prices[symbol] = {"price": 0, "name": symbol, "change_percent": 0}
     
     return {"prices": prices}
+class HistoryRequest(BaseModel):
+    holdings: Dict[str, Any]
+    range: str
+
+
+@app.post("/api/portfolio/history")
+async def get_portfolio_history(request: HistoryRequest):
+    """Get portfolio historical value for multiple timeframes"""
+    import yfinance as yf
+    import pandas as pd
+    
+    holdings = request.holdings
+    range_val = request.range
+    
+    if not holdings:
+        return {
+            "history": [],
+            "range": range_val,
+            "start_value": 0,
+            "end_value": 0,
+            "change": 0,
+            "change_percent": 0
+        }
+        
+    # Extract shares
+    shares = {}
+    for symbol, data in holdings.items():
+        symbol = symbol.upper().strip()
+        if isinstance(data, dict):
+            shares[symbol] = float(data.get("shares", 0))
+        else:
+            shares[symbol] = float(data)
+            
+    symbols = list(shares.keys())
+    
+    if range_val == "1d":
+        period = "1d"
+        interval = "5m"
+    elif range_val == "1w":
+        period = "5d"
+        interval = "15m"
+    elif range_val == "1m":
+        period = "1mo"
+        interval = "1d"
+    else:
+        period = "1mo"
+        interval = "1d"
+        
+    try:
+        tickers = yf.Tickers(" ".join(symbols))
+        df = tickers.history(period=period, interval=interval)
+        
+        if df.empty:
+            return {
+                "history": [],
+                "range": range_val,
+                "start_value": 0,
+                "end_value": 0,
+                "change": 0,
+                "change_percent": 0
+            }
+            
+        close_df = df['Close']
+        close_df = close_df.ffill().bfill()
+        
+        is_series = isinstance(close_df, pd.Series)
+        
+        history_points = []
+        for timestamp, row in (close_df.iterrows() if not is_series else close_df.items()):
+            total_val = 0
+            has_any = False
+            
+            if is_series:
+                price = row
+                sym = symbols[0]
+                if not math.isnan(price):
+                    total_val = price * shares[sym]
+                    has_any = True
+            else:
+                for sym, num_shares in shares.items():
+                    if sym in row and not math.isnan(row[sym]):
+                        total_val += row[sym] * num_shares
+                        has_any = True
+            if has_any:
+                history_points.append({
+                    "timestamp": timestamp.isoformat(),
+                    "value": round(float(total_val), 2)
+                })
+                
+        if not history_points:
+            return {
+                "history": [],
+                "range": range_val,
+                "start_value": 0,
+                "end_value": 0,
+                "change": 0,
+                "change_percent": 0
+            }
+            
+        start_value = history_points[0]["value"]
+        end_value = history_points[-1]["value"]
+        change = end_value - start_value
+        change_percent = (change / start_value * 100) if start_value > 0 else 0
+        
+        return {
+            "history": history_points,
+            "range": range_val,
+            "start_value": round(float(start_value), 2),
+            "end_value": round(float(end_value), 2),
+            "change": round(float(change), 2),
+            "change_percent": round(float(change_percent), 2)
+        }
+    except Exception as e:
+        print(f"Error computing history: {e}")
+        raise HTTPException(status_code=500, detail=f"Error computing history: {str(e)}")
+
 
 
 @app.post("/api/portfolio/add")

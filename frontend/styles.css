@@ -1293,6 +1293,117 @@ a {
     text-align: center;
 }
 
+/* ===== Portfolio Chart Card ===== */
+.preview-chart-card {
+    background: var(--color-paper);
+    border: 1px solid rgba(32, 32, 32, 0.08);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-soft);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.chart-title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.chart-label {
+    color: var(--color-slate);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.chart-metrics {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.chart-change {
+    font-size: 1.45rem;
+    font-weight: 600;
+    font-family: var(--font-polysans);
+}
+
+.chart-change.positive {
+    color: var(--bullish);
+}
+
+.chart-change.negative {
+    color: var(--bearish);
+}
+
+.chart-timeframe-selectors {
+    display: flex;
+    gap: 4px;
+    background: var(--color-fog);
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    border: 1px solid rgba(32, 32, 32, 0.04);
+}
+
+.timeframe-btn {
+    border: none;
+    background: transparent;
+    padding: 5px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-slate);
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+
+.timeframe-btn:hover {
+    color: var(--color-carbon);
+}
+
+.timeframe-btn.active {
+    background: var(--color-paper);
+    color: var(--color-carbon);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.chart-content {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    min-height: 220px;
+}
+
+.chart-canvas-container {
+    width: 100%;
+    height: 100%;
+}
+
+.chart-empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: var(--radius-card);
+    color: var(--color-slate);
+    font-size: 0.88rem;
+    font-weight: 500;
+    border: 1px dashed rgba(32, 32, 32, 0.12);
+}
+
+
 /* ===== Responsive ===== */
 @media (max-width: 1120px) {
     .hero-panel {

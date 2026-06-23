@@ -57,6 +57,7 @@ async function loadPortfolio() {
             updatePortfolioSummary({ total_value: 0, daily_change: 0, total_pl: 0, holdings: [] });
             renderPortfolioPreview([], 0);
             renderHoldings([]);
+            updatePortfolioHistoryChart(currentChartTimeframe);
             return;
         }
 
@@ -111,6 +112,7 @@ async function loadPortfolio() {
         });
         renderPortfolioPreview(holdings, totalValue);
         renderHoldings(holdings);
+        updatePortfolioHistoryChart(currentChartTimeframe);
     } catch (error) {
         console.error('Error loading portfolio:', error);
     }
@@ -718,3 +720,199 @@ async function loadMarketContext() {
         console.log('Market context pre-fetch failed (non-critical):', error);
     }
 }
+
+// ===== Portfolio History Chart =====
+let currentChartTimeframe = '1d';
+window.portfolioChartInstance = null;
+
+async function updatePortfolioHistoryChart(range) {
+    const emptyState = document.getElementById('chartEmptyState');
+    const canvasContainer = document.getElementById('portfolioChart')?.parentElement;
+    const changeEl = document.getElementById('chartValueChange');
+    
+    const localPortfolio = getLocalPortfolio();
+    if (Object.keys(localPortfolio).length === 0) {
+        if (canvasContainer) canvasContainer.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'flex';
+        if (changeEl) changeEl.textContent = '+$0.00 (0.00%)';
+        if (window.portfolioChartInstance) {
+            window.portfolioChartInstance.destroy();
+            window.portfolioChartInstance = null;
+        }
+        return;
+    }
+    
+    if (canvasContainer) canvasContainer.style.display = 'block';
+    if (emptyState) emptyState.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/portfolio/history`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                holdings: localPortfolio,
+                range: range
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.history || data.history.length === 0) {
+            if (canvasContainer) canvasContainer.style.display = 'none';
+            if (emptyState) emptyState.style.display = 'flex';
+            if (changeEl) changeEl.textContent = '+$0.00 (0.00%)';
+            return;
+        }
+        
+        renderChartInstance(data.history, range);
+        
+        const changeVal = data.change || 0;
+        const changePct = data.change_percent || 0;
+        const isPositive = changeVal >= 0;
+        
+        if (changeEl) {
+            changeEl.textContent = `${isPositive ? '+' : ''}${formatCurrency(changeVal)} (${formatSignedPercent(changePct)})`;
+            changeEl.className = `chart-change ${isPositive ? 'positive' : 'negative'}`;
+        }
+        
+    } catch (error) {
+        console.error('Error fetching history:', error);
+        if (canvasContainer) canvasContainer.style.display = 'none';
+        if (emptyState) {
+            emptyState.style.display = 'flex';
+            emptyState.innerHTML = '<p class="error">Could not load chart data</p>';
+        }
+    }
+}
+
+window.changeChartTimeframe = async function(range, btn) {
+    currentChartTimeframe = range;
+    const buttons = btn.parentElement.querySelectorAll('.timeframe-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    await updatePortfolioHistoryChart(range);
+};
+
+function renderChartInstance(historyData, range) {
+    const canvas = document.getElementById('portfolioChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    if (window.portfolioChartInstance) {
+        window.portfolioChartInstance.destroy();
+    }
+    
+    const labels = historyData.map(d => formatChartDate(d.timestamp, range));
+    const values = historyData.map(d => d.value);
+    
+    const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+    gradient.addColorStop(0, 'rgba(255, 104, 44, 0.18)');
+    gradient.addColorStop(1, 'rgba(255, 104, 44, 0.00)');
+    
+    window.portfolioChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                borderColor: '#ff682c',
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: '#ff682c',
+                pointHoverBorderColor: '#ffffff',
+                pointHoverBorderWidth: 2,
+                fill: true,
+                backgroundColor: gradient,
+                tension: 0.35
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: '#202020',
+                    titleColor: '#828282',
+                    titleFont: {
+                        family: 'Inter',
+                        size: 11
+                    },
+                    bodyColor: '#ffffff',
+                    bodyFont: {
+                        family: 'Space Grotesk',
+                        weight: 'bold',
+                        size: 13
+                    },
+                    padding: 10,
+                    cornerRadius: 8,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return '$' + context.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: '#828282',
+                        font: {
+                            family: 'Inter',
+                            size: 10
+                        },
+                        maxTicksLimit: 6
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(28, 28, 28, 0.04)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#828282',
+                        font: {
+                            family: 'Space Grotesk',
+                            size: 10
+                        },
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            }
+        }
+     });
+}
+
+function formatChartDate(timestamp, range) {
+    const date = new Date(timestamp);
+    if (range === '1d') {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (range === '1w') {
+        return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    } else {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+}
+
