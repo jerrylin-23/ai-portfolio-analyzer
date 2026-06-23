@@ -782,8 +782,9 @@ async def get_market_context():
         headers = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         if response.status_code == 200:
-            articles = response.json().get("articles", [])
-            recent_news = [a.get("title", "") for a in articles[:25]]
+            res_data = response.json()
+            articles = res_data.get("articles", []) if isinstance(res_data, dict) else (res_data if isinstance(res_data, list) else [])
+            recent_news = [a.get("title", "") for a in articles[:25] if isinstance(a, dict)]
     except Exception as e:
         print(f"Error fetching news: {e}")
     
@@ -993,8 +994,9 @@ async def get_portfolio_analysis(symbols: str = ""):
         headers = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         if response.status_code == 200:
-            articles = response.json().get("articles", [])
-            recent_news = [a.get("title", "") for a in articles[:15]]
+            res_data = response.json()
+            articles = res_data.get("articles", []) if isinstance(res_data, dict) else (res_data if isinstance(res_data, list) else [])
+            recent_news = [a.get("title", "") for a in articles[:15] if isinstance(a, dict)]
     except Exception as e:
         print(f"Error fetching news: {e}")
     
