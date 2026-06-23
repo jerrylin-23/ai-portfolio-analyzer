@@ -87,19 +87,11 @@ a {
     flex-direction: column;
 }
 
-.floating-nav {
-    width: fit-content;
-    max-width: 100%;
-    margin: 0 auto 56px;
-    padding: 8px 8px 8px 16px;
+.app-header {
     display: flex;
     align-items: center;
-    gap: 18px;
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(130, 130, 130, 0.5);
-    border-radius: var(--radius-nav);
-    box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(14px);
+    justify-content: flex-start;
+    margin-bottom: 38px;
 }
 
 .brand {
@@ -124,47 +116,6 @@ a {
     transform: rotate(-15deg);
 }
 
-.nav-links {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-}
-
-.nav-links a,
-.nav-cta {
-    min-height: 34px;
-    display: inline-flex;
-    align-items: center;
-    border-radius: var(--radius-pill);
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.nav-links a {
-    padding: 0 13px;
-    color: var(--color-carbon);
-    transition: background 0.18s ease, color 0.18s ease;
-}
-
-.nav-links a:hover {
-    background: var(--color-fog);
-}
-
-.nav-cta {
-    padding: 0 16px;
-    border: 1px solid var(--color-carbon);
-    background: var(--color-carbon);
-    color: var(--color-paper);
-    cursor: pointer;
-    transition: transform 0.18s ease, background 0.18s ease;
-}
-
-.nav-cta:hover {
-    transform: translateY(-1px);
-    background: #111111;
-}
 
 /* ===== Hero ===== */
 .hero-panel {
@@ -1378,20 +1329,6 @@ a {
         padding-top: 14px;
     }
 
-    .floating-nav {
-        width: 100%;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        border-radius: 28px;
-        margin-bottom: 38px;
-    }
-
-    .nav-links {
-        order: 3;
-        width: 100%;
-        justify-content: center;
-        padding-top: 4px;
-    }
 
     .hero-panel {
         padding-bottom: 50px;
@@ -1444,19 +1381,8 @@ a {
 }
 
 @media (max-width: 540px) {
-    .floating-nav {
-        align-items: stretch;
-        gap: 10px;
-    }
-
-    .brand,
-    .nav-cta {
-        margin: 0 auto;
-    }
-
-    .nav-links {
-        overflow-x: auto;
-        justify-content: flex-start;
+    .app-header {
+        justify-content: center;
     }
 
     .hero-actions,
