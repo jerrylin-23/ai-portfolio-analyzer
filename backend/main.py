@@ -206,10 +206,11 @@ async def get_portfolio_prices(symbols: str):
                 prices[symbol] = {
                     "price": data.get("price", 0),
                     "name": data.get("name", symbol),
-                    "change_percent": data.get("change_percent", 0)
+                    "change_percent": data.get("change_percent", 0),
+                    "sector": data.get("sector", "Unknown")
                 }
         except:
-            prices[symbol] = {"price": 0, "name": symbol, "change_percent": 0}
+            prices[symbol] = {"price": 0, "name": symbol, "change_percent": 0, "sector": "Unknown"}
     
     return {"prices": prices}
 class HistoryRequest(BaseModel):

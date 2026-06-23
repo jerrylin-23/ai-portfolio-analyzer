@@ -6,6 +6,11 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
     : '';
 let selectedSymbol = null;
 
+// Global state for allocation rendering
+let latestHoldings = [];
+let latestTotalValue = 0;
+let currentAllocTab = 'holdings';
+
 // ===== LocalStorage Portfolio Management =====
 const PORTFOLIO_KEY = 'ai_portfolio_holdings';
 
@@ -94,7 +99,8 @@ async function loadPortfolio() {
                 value,
                 pl,
                 pl_percent: costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0,
-                change_percent: live.change_percent || 0
+                change_percent: live.change_percent || 0,
+                sector: live.sector || "Unknown"
             };
         });
 
@@ -165,7 +171,19 @@ function updatePortfolioSummary(data) {
     }
 }
 
+window.toggleAllocTab = function(tab) {
+    currentAllocTab = tab;
+    const tabHoldings = document.getElementById('allocTabHoldings');
+    const tabSectors = document.getElementById('allocTabSectors');
+    if (tabHoldings) tabHoldings.classList.toggle('active', tab === 'holdings');
+    if (tabSectors) tabSectors.classList.toggle('active', tab === 'sectors');
+    renderPortfolioPreview(latestHoldings, latestTotalValue);
+};
+
 function renderPortfolioPreview(holdings, totalValue) {
+    latestHoldings = holdings || [];
+    latestTotalValue = totalValue || 0;
+
     const allocationList = document.getElementById('previewAllocationList');
     const allocationMeta = document.getElementById('allocationMeta');
     const largestWeight = document.getElementById('previewLargestWeight');
@@ -180,17 +198,16 @@ function renderPortfolioPreview(holdings, totalValue) {
 
     if (!allocationList) return;
 
-    const liveHoldings = (holdings || [])
+    const liveHoldings = (latestHoldings || [])
         .filter(holding => holding.value > 0)
         .sort((a, b) => b.value - a.value);
-    const total = totalValue || liveHoldings.reduce((sum, holding) => sum + holding.value, 0);
+    const total = latestTotalValue || liveHoldings.reduce((sum, holding) => sum + holding.value, 0);
     const count = liveHoldings.length;
 
-    if (allocationMeta) {
-        allocationMeta.textContent = `${count} ${count === 1 ? 'holding' : 'holdings'}`;
-    }
-
     if (!count || total <= 0) {
+        if (allocationMeta) {
+            allocationMeta.textContent = '0 holdings';
+        }
         allocationList.innerHTML = '<div class="allocation-empty">Add holdings to see live allocation.</div>';
         if (largestWeight) largestWeight.textContent = '0%';
         if (largestSymbol) largestSymbol.textContent = 'No holdings';
@@ -201,24 +218,61 @@ function renderPortfolioPreview(holdings, totalValue) {
         return;
     }
 
-    allocationList.innerHTML = liveHoldings.slice(0, 5).map(holding => {
-        const weight = (holding.value / total) * 100;
-        const safeSymbol = escapeHtml(holding.symbol);
-        const safeName = escapeHtml(holding.name || holding.symbol);
+    if (currentAllocTab === 'sectors') {
+        const sectorGroups = {};
+        liveHoldings.forEach(holding => {
+            const sector = holding.sector || 'Unknown';
+            sectorGroups[sector] = (sectorGroups[sector] || 0) + holding.value;
+        });
 
-        return `
-            <div class="allocation-row" title="${safeName}">
-                <div class="allocation-label">
-                    <span>${safeSymbol}</span>
-                    <small>${formatCurrency(holding.value)}</small>
+        const sortedSectors = Object.entries(sectorGroups)
+            .map(([sector, value]) => ({ sector, value }))
+            .sort((a, b) => b.value - a.value);
+
+        if (allocationMeta) {
+            allocationMeta.textContent = `${sortedSectors.length} ${sortedSectors.length === 1 ? 'sector' : 'sectors'}`;
+        }
+
+        allocationList.innerHTML = sortedSectors.map(s => {
+            const weight = (s.value / total) * 100;
+            const safeSector = escapeHtml(s.sector);
+            return `
+                <div class="allocation-row" title="${safeSector}">
+                    <div class="allocation-label">
+                        <span>${safeSector}</span>
+                        <small>${formatCurrency(s.value)}</small>
+                    </div>
+                    <div class="allocation-track" aria-hidden="true">
+                        <span style="width: ${clampPercent(weight)}%"></span>
+                    </div>
+                    <strong>${weight.toFixed(1)}%</strong>
                 </div>
-                <div class="allocation-track" aria-hidden="true">
-                    <span style="width: ${clampPercent(weight)}%"></span>
+            `;
+        }).join('');
+    } else {
+        if (allocationMeta) {
+            allocationMeta.textContent = `${count} ${count === 1 ? 'holding' : 'holdings'}`;
+        }
+
+        allocationList.innerHTML = liveHoldings.slice(0, 5).map(holding => {
+            const weight = (holding.value / total) * 100;
+            const safeSymbol = escapeHtml(holding.symbol);
+            const safeName = escapeHtml(holding.name || holding.symbol);
+
+            return `
+                <div class="allocation-row" title="${safeName}">
+                    <div class="allocation-label">
+                        <span>${safeSymbol}</span>
+                        <small>${formatCurrency(holding.value)}</small>
+                    </div>
+                    <div class="allocation-track" aria-hidden="true">
+                        <span style="width: ${clampPercent(weight)}%"></span>
+                    </div>
+                    <strong>${weight.toFixed(1)}%</strong>
                 </div>
-                <strong>${weight.toFixed(1)}%</strong>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+    }
 
     const largest = liveHoldings[0];
     const largestPct = (largest.value / total) * 100;
@@ -272,6 +326,7 @@ function renderHoldings(holdings) {
                 <div>
                     <div class="holding-symbol">${holding.symbol}</div>
                     <div class="holding-name">${holding.name || holding.symbol}</div>
+                    <div class="holding-sector-badge">${holding.sector || 'Unknown'}</div>
                 </div>
                 <button class="holding-remove" onclick="removeStock('${holding.symbol}', event)">✕</button>
             </div>

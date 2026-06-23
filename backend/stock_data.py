@@ -29,6 +29,59 @@ MOCK_DATA = {
 }
 
 
+POPULAR_SECTORS = {
+    "AAPL": "Technology",
+    "MSFT": "Technology",
+    "GOOGL": "Technology",
+    "GOOG": "Technology",
+    "AMZN": "Consumer Cyclical",
+    "TSLA": "Consumer Cyclical",
+    "NVDA": "Technology",
+    "META": "Technology",
+    "AMD": "Technology",
+    "NFLX": "Communication Services",
+    "MU": "Technology",
+    "CAT": "Industrials",
+    "JPM": "Financial Services",
+    "V": "Financial Services",
+    "MA": "Financial Services",
+    "UNH": "Healthcare",
+    "HD": "Consumer Cyclical",
+    "PG": "Consumer Defensive",
+    "XOM": "Energy",
+    "JNJ": "Healthcare",
+    "AVGO": "Technology",
+    "LLY": "Healthcare",
+    "COST": "Consumer Defensive",
+    "DIS": "Communication Services",
+    "ADBE": "Technology",
+    "CRM": "Technology",
+    "CVX": "Energy",
+    "BAC": "Financial Services",
+    "WMT": "Consumer Defensive",
+    "PEP": "Consumer Defensive",
+    "KO": "Consumer Defensive",
+    "NKE": "Consumer Cyclical",
+    "T": "Communication Services",
+    "VZ": "Communication Services",
+    "INTC": "Technology",
+    "QCOM": "Technology",
+    "TXN": "Technology",
+    "CSCO": "Technology",
+    "AMAT": "Technology",
+    "LRCX": "Technology",
+    "ORCL": "Technology",
+    "IBM": "Technology",
+    "NOW": "Technology",
+    "PANW": "Technology",
+    "FTNT": "Technology",
+    "CRWD": "Technology",
+    "PLTR": "Technology",
+    "SMCI": "Technology",
+    "ASML": "Technology",
+}
+
+
 def get_stock_info(symbol: str) -> Dict:
     """Get stock information - tries Finnhub first, falls back to mock data"""
     symbol = symbol.upper().strip()
@@ -60,16 +113,31 @@ def _fetch_from_finnhub(symbol: str) -> Dict:
     if quote.get("c") is None or quote.get("c") == 0:
         raise ValueError(f"No quote data for {symbol}")
     
-    # Get company profile for name
+    # Get company profile for name and industry/sector
     name = symbol
+    sector = "Unknown"
     try:
         profile_url = f"{FINNHUB_BASE_URL}/stock/profile2"
         profile_resp = requests.get(profile_url, params=params, timeout=5)
         if profile_resp.status_code == 200:
             profile = profile_resp.json()
             name = profile.get("name", symbol)
+            sector = profile.get("finnhubIndustry", "Unknown")
     except Exception:
         pass  # Use symbol as name if profile fails
+        
+    # Fallback to popular sectors
+    if sector == "Unknown" and symbol in POPULAR_SECTORS:
+        sector = POPULAR_SECTORS[symbol]
+        
+    # Fallback to yfinance if still Unknown
+    if sector == "Unknown":
+        try:
+            import yfinance as yf
+            ticker_info = yf.Ticker(symbol).info
+            sector = ticker_info.get("sector", "Unknown")
+        except Exception:
+            pass
     
     return {
         "symbol": symbol,
@@ -78,11 +146,23 @@ def _fetch_from_finnhub(symbol: str) -> Dict:
         "previous_close": round(quote["pc"], 2),
         "change": round(quote["d"] or 0, 2),
         "change_percent": round(quote["dp"] or 0, 2),
+        "sector": sector
     }
 
 
 def _get_mock_data(symbol: str) -> Dict:
     """Return mock data for demo purposes"""
+    sector = POPULAR_SECTORS.get(symbol, "Unknown")
+    
+    # Fallback to yfinance if mock symbol and not in popular
+    if sector == "Unknown":
+        try:
+            import yfinance as yf
+            ticker_info = yf.Ticker(symbol).info
+            sector = ticker_info.get("sector", "Unknown")
+        except Exception:
+            pass
+
     if symbol in MOCK_DATA:
         mock = MOCK_DATA[symbol]
         price = mock["price"]
@@ -95,7 +175,8 @@ def _get_mock_data(symbol: str) -> Dict:
             "previous_close": round(prev, 2),
             "change": round(change, 2),
             "change_percent": round((change / prev) * 100, 2),
-            "is_mock": True
+            "is_mock": True,
+            "sector": sector
         }
     
     # Generate random data for unknown symbols
@@ -109,7 +190,8 @@ def _get_mock_data(symbol: str) -> Dict:
         "previous_close": round(prev, 2),
         "change": round(change, 2),
         "change_percent": round((change / prev) * 100, 2),
-        "is_mock": True
+        "is_mock": True,
+        "sector": sector
     }
 
 

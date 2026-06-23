@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=parchment-ui-6">
+    <link rel="stylesheet" href="styles.css?v=parchment-ui-7">
 </head>
 
 <body>
@@ -93,8 +93,11 @@
                 </div>
 
                 <div class="preview-allocation-card">
-                    <div class="chart-heading">
-                        <span>Live allocation</span>
+                    <div class="chart-heading allocation-toggle-header">
+                        <div class="allocation-tabs">
+                            <button id="allocTabHoldings" class="alloc-tab-btn active" onclick="toggleAllocTab('holdings')">Assets</button>
+                            <button id="allocTabSectors" class="alloc-tab-btn" onclick="toggleAllocTab('sectors')">Sectors</button>
+                        </div>
                         <span id="allocationMeta">0 holdings</span>
                     </div>
                     <div class="allocation-list" id="previewAllocationList">
@@ -242,7 +245,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-    <script src="app.js?v=parchment-ui-6"></script>
+    <script src="app.js?v=parchment-ui-7"></script>
 </body>
 
 </html>
