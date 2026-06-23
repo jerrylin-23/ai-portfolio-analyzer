@@ -7,9 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import List, Optional
+from datetime import datetime, timezone
 import uvicorn
 from pathlib import Path
 import json
+import math
 
 from stock_data import get_stock_info, get_portfolio_data
 from news_fetcher import get_stock_news
@@ -65,6 +67,55 @@ def save_portfolio():
 
 # Load portfolio on startup
 load_portfolio()
+
+
+def _finite_number(value, default=0):
+    """Return a JSON-safe Python number for API responses."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+
+    if not math.isfinite(number):
+        return default
+
+    return number
+
+
+def _round_number(value, default=0):
+    return round(_finite_number(value, default), 2)
+
+
+def _to_utc_iso(dt):
+    if not dt:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso_datetime(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _google_news_datetime(entry):
+    parsed = getattr(entry, "published_parsed", None)
+    if not parsed:
+        return None
+
+    try:
+        from calendar import timegm
+        return datetime.fromtimestamp(timegm(parsed), tz=timezone.utc)
+    except Exception:
+        return None
 
 # Initialize frontend path
 frontend_path = Path(__file__).parent.parent / "frontend"
@@ -322,41 +373,46 @@ async def get_sector_performance():
                 # Get 1 month of daily data
                 hist = ticker.history(period="1mo")
                 
-                if hist.empty:
+                if hist.empty or "Close" not in hist.columns:
                     raise ValueError("No historical data")
+
+                hist = hist.dropna(subset=["Close"])
+
+                if hist.empty:
+                    raise ValueError("No valid close data")
                 
-                current_price = hist['Close'].iloc[-1]
+                current_price = _finite_number(hist['Close'].iloc[-1])
                 
                 # Calculate changes
                 # Daily change
                 if len(hist) >= 2:
-                    prev_close = hist['Close'].iloc[-2]
+                    prev_close = _finite_number(hist['Close'].iloc[-2])
                     change_day = current_price - prev_close
-                    change_day_pct = ((current_price / prev_close) - 1) * 100
+                    change_day_pct = ((current_price / prev_close) - 1) * 100 if prev_close else 0
                 else:
                     change_day = 0
                     change_day_pct = 0
                 
                 # 1 week change (5 trading days)
                 if len(hist) >= 5:
-                    price_1w_ago = hist['Close'].iloc[-5]
-                    change_1w_pct = ((current_price / price_1w_ago) - 1) * 100
+                    price_1w_ago = _finite_number(hist['Close'].iloc[-5])
+                    change_1w_pct = ((current_price / price_1w_ago) - 1) * 100 if price_1w_ago else 0
                 else:
                     change_1w_pct = 0
                 
                 # 1 month change
-                price_1m_ago = hist['Close'].iloc[0]
-                change_1m_pct = ((current_price / price_1m_ago) - 1) * 100
+                price_1m_ago = _finite_number(hist['Close'].iloc[0])
+                change_1m_pct = ((current_price / price_1m_ago) - 1) * 100 if price_1m_ago else 0
                 
                 results.append({
                     "name": sector["name"],
                     "symbol": sector["symbol"],
                     "category": sector["category"],
-                    "price": round(current_price, 2),
-                    "change": round(change_day, 2),
-                    "change_percent": round(change_day_pct, 2),
-                    "change_1w": round(change_1w_pct, 2),
-                    "change_1m": round(change_1m_pct, 2),
+                    "price": _round_number(current_price),
+                    "change": _round_number(change_day),
+                    "change_percent": _round_number(change_day_pct),
+                    "change_1w": _round_number(change_1w_pct),
+                    "change_1m": _round_number(change_1m_pct),
                 })
                 
             except Exception as e:
@@ -368,9 +424,9 @@ async def get_sector_performance():
                         "name": sector["name"],
                         "symbol": sector["symbol"],
                         "category": sector["category"],
-                        "price": data.get("price", 0),
-                        "change": data.get("change", 0),
-                        "change_percent": data.get("change_percent", 0),
+                        "price": _round_number(data.get("price", 0)),
+                        "change": _round_number(data.get("change", 0)),
+                        "change_percent": _round_number(data.get("change_percent", 0)),
                         "change_1w": 0,
                         "change_1m": 0,
                     })
@@ -396,9 +452,9 @@ async def get_sector_performance():
                     "name": sector["name"],
                     "symbol": sector["symbol"],
                     "category": sector["category"],
-                    "price": data.get("price", 0),
-                    "change": data.get("change", 0),
-                    "change_percent": data.get("change_percent", 0),
+                    "price": _round_number(data.get("price", 0)),
+                    "change": _round_number(data.get("change", 0)),
+                    "change_percent": _round_number(data.get("change_percent", 0)),
                     "change_1w": 0,
                     "change_1m": 0,
                 })
@@ -429,7 +485,6 @@ async def get_sector_performance():
 async def get_market_feed():
     """Get real-time financial news from newsfilter.io (10,000+ sources)"""
     import requests
-    from datetime import datetime
     
     all_news = []
     
@@ -458,18 +513,21 @@ async def get_market_feed():
         
         if response.status_code == 200:
             data = response.json()
-            articles = data.get("articles", [])
+            if isinstance(data, dict):
+                articles = data.get("articles", [])
+            elif isinstance(data, list):
+                articles = data
+            else:
+                articles = []
             
             for article in articles[:20]:
                 # Parse published date
                 published = article.get("publishedAt", "")
+                published_dt = _parse_iso_datetime(published)
+                published_at = _to_utc_iso(published_dt)
                 time_str = ""
-                if published:
-                    try:
-                        dt = datetime.fromisoformat(published.replace('Z', '+00:00'))
-                        time_str = dt.strftime("%b %d, %I:%M %p")
-                    except:
-                        pass
+                if published_dt:
+                    time_str = published_dt.astimezone().strftime("%b %d, %I:%M %p")
                 
                 source_name = article.get("source", {}).get("name", "News")
                 symbols = article.get("symbols", [])
@@ -480,6 +538,7 @@ async def get_market_feed():
                     "display_name": source_name,
                     "text": article.get("title", "")[:280],
                     "time": time_str,
+                    "published_at": published_at,
                     "link": article.get("url", "#"),
                     "symbols": symbols_str
                 })
@@ -503,14 +562,11 @@ async def get_market_feed():
             print(f"Google News returned {len(feed.entries)} articles")
             
             for entry in feed.entries[:15]:
+                published_dt = _google_news_datetime(entry)
+                published_at = _to_utc_iso(published_dt)
                 time_str = ""
-                if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                    try:
-                        from time import mktime
-                        dt = datetime.fromtimestamp(mktime(entry.published_parsed))
-                        time_str = dt.strftime("%b %d, %I:%M %p")
-                    except:
-                        pass
+                if published_dt:
+                    time_str = published_dt.astimezone().strftime("%b %d, %I:%M %p")
                 
                 # Extract source from title (format: "Title - Source")
                 title = entry.get("title", "")
@@ -525,6 +581,7 @@ async def get_market_feed():
                     "display_name": source,
                     "text": title[:280],
                     "time": time_str,
+                    "published_at": published_at,
                     "link": entry.get("link", "#"),
                     "symbols": ""
                 })
@@ -533,9 +590,10 @@ async def get_market_feed():
     
     # Ultimate fallback - static placeholder if everything fails
     if not all_news:
+        now_iso = _to_utc_iso(datetime.now(timezone.utc))
         all_news = [
-            {"account": "@MarketUpdate", "display_name": "Market Update", "text": "Markets are open. Check individual stocks for latest prices.", "time": datetime.now().strftime("%I:%M %p"), "link": "#", "symbols": ""},
-            {"account": "@TradingView", "display_name": "Trading Tip", "text": "Monitor your sector exposure and upcoming earnings for risk management.", "time": "", "link": "#", "symbols": ""},
+            {"account": "@MarketUpdate", "display_name": "Market Update", "text": "Markets are open. Check individual stocks for latest prices.", "time": datetime.now().strftime("%I:%M %p"), "published_at": now_iso, "link": "#", "symbols": ""},
+            {"account": "@TradingView", "display_name": "Trading Tip", "text": "Monitor your sector exposure and upcoming earnings for risk management.", "time": "", "published_at": now_iso, "link": "#", "symbols": ""},
         ]
     
     return {
@@ -897,6 +955,16 @@ Be direct and specific. Reference actual holdings and market events."""
         "key_index": key_index,
         "generated_at": datetime.now().isoformat()
     }
+
+
+# Serve the frontend entrypoint without browser caching during local development.
+@app.get("/", include_in_schema=False)
+async def serve_frontend_index():
+    response = FileResponse(frontend_path / "index.html")
+    response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 # Mount frontend static files at root (after all API routes)

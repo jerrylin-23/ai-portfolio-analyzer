@@ -55,6 +55,7 @@ async function loadPortfolio() {
 
         if (symbols.length === 0) {
             updatePortfolioSummary({ total_value: 0, daily_change: 0, total_pl: 0, holdings: [] });
+            renderPortfolioPreview([], 0);
             renderHoldings([]);
             return;
         }
@@ -67,6 +68,7 @@ async function loadPortfolio() {
         let totalValue = 0;
         let dailyChange = 0;
         let totalPL = 0;
+        let totalCost = 0;
 
         const holdings = symbols.map(symbol => {
             const local = localPortfolio[symbol];
@@ -80,6 +82,7 @@ async function loadPortfolio() {
             totalValue += value;
             dailyChange += dayChange;
             totalPL += pl;
+            totalCost += costBasis;
 
             return {
                 symbol,
@@ -94,7 +97,19 @@ async function loadPortfolio() {
             };
         });
 
-        updatePortfolioSummary({ total_value: totalValue, daily_change: dailyChange, total_pl: totalPL, holdings });
+        const previousValue = totalValue - dailyChange;
+        const dailyChangePercent = previousValue > 0 ? (dailyChange / previousValue) * 100 : 0;
+        const totalPLPercent = totalCost > 0 ? (totalPL / totalCost) * 100 : 0;
+
+        updatePortfolioSummary({
+            total_value: totalValue,
+            daily_change: dailyChange,
+            daily_change_percent: dailyChangePercent,
+            total_pl: totalPL,
+            total_pl_percent: totalPLPercent,
+            holdings
+        });
+        renderPortfolioPreview(holdings, totalValue);
         renderHoldings(holdings);
     } catch (error) {
         console.error('Error loading portfolio:', error);
@@ -120,7 +135,10 @@ function updatePortfolioSummary(data) {
     const isPositive = changeAmount >= 0;
 
     const dailyChangeStr = `${isPositive ? '+' : ''}${formatCurrency(changeAmount)}`;
-    dailyChange.textContent = `${dailyChangeStr} (${isPositive ? '+' : ''}${changePercent.toFixed(2)}%)`;
+    dailyChange.innerHTML = `
+        <span class="summary-amount">${dailyChangeStr}</span>
+        <span class="summary-percent">(${formatSignedPercent(changePercent)})</span>
+    `;
     dailyChange.style.color = isPositive ? 'var(--bullish)' : 'var(--bearish)';
     if (sidebarDailyChange) {
         sidebarDailyChange.textContent = dailyChangeStr;
@@ -133,7 +151,10 @@ function updatePortfolioSummary(data) {
         const plPercent = data.total_pl_percent || 0;
         const plPositive = plAmount >= 0;
         const plStr = `${plPositive ? '+' : ''}${formatCurrency(plAmount)}`;
-        totalPL.textContent = `${plStr} (${plPositive ? '+' : ''}${plPercent.toFixed(2)}%)`;
+        totalPL.innerHTML = `
+            <span class="summary-amount">${plStr}</span>
+            <span class="summary-percent">(${formatSignedPercent(plPercent)})</span>
+        `;
         totalPL.style.color = plPositive ? 'var(--bullish)' : 'var(--bearish)';
         if (sidebarTotalPL) {
             sidebarTotalPL.textContent = plStr;
@@ -142,15 +163,96 @@ function updatePortfolioSummary(data) {
     }
 }
 
+function renderPortfolioPreview(holdings, totalValue) {
+    const allocationList = document.getElementById('previewAllocationList');
+    const allocationMeta = document.getElementById('allocationMeta');
+    const largestWeight = document.getElementById('previewLargestWeight');
+    const largestSymbol = document.getElementById('previewLargestSymbol');
+    const concentrationRing = document.getElementById('previewConcentrationRing');
+    const upBar = document.getElementById('previewUpBar');
+    const downBar = document.getElementById('previewDownBar');
+    const flatBar = document.getElementById('previewFlatBar');
+    const upCountEl = document.getElementById('previewUpCount');
+    const downCountEl = document.getElementById('previewDownCount');
+    const flatCountEl = document.getElementById('previewFlatCount');
+
+    if (!allocationList) return;
+
+    const liveHoldings = (holdings || [])
+        .filter(holding => holding.value > 0)
+        .sort((a, b) => b.value - a.value);
+    const total = totalValue || liveHoldings.reduce((sum, holding) => sum + holding.value, 0);
+    const count = liveHoldings.length;
+
+    if (allocationMeta) {
+        allocationMeta.textContent = `${count} ${count === 1 ? 'holding' : 'holdings'}`;
+    }
+
+    if (!count || total <= 0) {
+        allocationList.innerHTML = '<div class="allocation-empty">Add holdings to see live allocation.</div>';
+        if (largestWeight) largestWeight.textContent = '0%';
+        if (largestSymbol) largestSymbol.textContent = 'No holdings';
+        if (concentrationRing) concentrationRing.style.setProperty('--donut-angle', '0deg');
+        updatePreviewBar(upBar, upCountEl, 0, 0);
+        updatePreviewBar(downBar, downCountEl, 0, 0);
+        updatePreviewBar(flatBar, flatCountEl, 0, 0);
+        return;
+    }
+
+    allocationList.innerHTML = liveHoldings.slice(0, 5).map(holding => {
+        const weight = (holding.value / total) * 100;
+        const safeSymbol = escapeHtml(holding.symbol);
+        const safeName = escapeHtml(holding.name || holding.symbol);
+
+        return `
+            <div class="allocation-row" title="${safeName}">
+                <div class="allocation-label">
+                    <span>${safeSymbol}</span>
+                    <small>${formatCurrency(holding.value)}</small>
+                </div>
+                <div class="allocation-track" aria-hidden="true">
+                    <span style="width: ${clampPercent(weight)}%"></span>
+                </div>
+                <strong>${weight.toFixed(1)}%</strong>
+            </div>
+        `;
+    }).join('');
+
+    const largest = liveHoldings[0];
+    const largestPct = (largest.value / total) * 100;
+    if (largestWeight) largestWeight.textContent = `${Math.round(largestPct)}%`;
+    if (largestSymbol) largestSymbol.textContent = largest.symbol;
+    if (concentrationRing) {
+        concentrationRing.style.setProperty('--donut-angle', `${clampPercent(largestPct) * 3.6}deg`);
+    }
+
+    const upCount = liveHoldings.filter(holding => holding.change_percent > 0).length;
+    const downCount = liveHoldings.filter(holding => holding.change_percent < 0).length;
+    const flatCount = liveHoldings.filter(holding => holding.change_percent === 0).length;
+    updatePreviewBar(upBar, upCountEl, upCount, count);
+    updatePreviewBar(downBar, downCountEl, downCount, count);
+    updatePreviewBar(flatBar, flatCountEl, flatCount, count);
+}
+
+function updatePreviewBar(bar, label, count, total) {
+    const percent = total > 0 ? (count / total) * 100 : 0;
+    if (bar) bar.style.width = `${clampPercent(percent)}%`;
+    if (label) label.textContent = String(count);
+}
+
+function clampPercent(value) {
+    return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
 function renderHoldings(holdings) {
     const grid = document.getElementById('holdingsGrid');
 
     if (!holdings || holdings.length === 0) {
         grid.innerHTML = `
             <div class="empty-state">
-                <span class="empty-icon">📭</span>
+                <span class="empty-icon">—</span>
                 <p>No stocks in your portfolio</p>
-                <p class="hint">Add stocks above to get started!</p>
+                <p class="hint">Add a ticker above to start the desk.</p>
             </div>
         `;
         return;
@@ -163,7 +265,7 @@ function renderHoldings(holdings) {
 
         return `
         <div class="holding-card ${selectedSymbol === holding.symbol ? 'selected' : ''}" 
-             onclick="selectStock('${holding.symbol}')">
+             onclick="selectStock('${holding.symbol}', event)">
             <div class="holding-header">
                 <div>
                     <div class="holding-symbol">${holding.symbol}</div>
@@ -174,7 +276,7 @@ function renderHoldings(holdings) {
             <div class="holding-price">
                 <span class="holding-current-price">${formatCurrency(holding.price)}</span>
                 <span class="holding-change ${holding.change_percent >= 0 ? 'positive' : 'negative'}">
-                    ${holding.change_percent >= 0 ? '+' : ''}${holding.change_percent?.toFixed(2) || 0}%
+                    ${formatSignedPercent(holding.change_percent)}
                 </span>
             </div>
             <div class="holding-details">
@@ -185,7 +287,7 @@ function renderHoldings(holdings) {
             <div class="holding-cost-basis">
                 <span>Avg Cost: ${formatCurrency(holding.cost_average)}</span>
                 <span class="holding-pl ${plClass}">
-                    P/L: ${plSign}${formatCurrency(holding.pl)} (${plSign}${holding.pl_percent?.toFixed(2) || 0}%)
+                    P/L: ${plSign}${formatCurrency(holding.pl)} (${formatSignedPercent(holding.pl_percent)})
                 </span>
             </div>
             ` : `
@@ -206,7 +308,7 @@ function renderHoldings(holdings) {
                            value="${holding.cost_average || ''}" placeholder="$0.00" step="0.01" min="0" 
                            onclick="event.stopPropagation()">
                 </div>
-                <button class="edit-save-btn" onclick="updateHolding('${holding.symbol}', event)">💾</button>
+                <button class="edit-save-btn" onclick="updateHolding('${holding.symbol}', event)">Save</button>
             </div>
         </div>
     `}).join('');
@@ -293,14 +395,16 @@ async function removeStock(symbol, event) {
 }
 
 // ===== News & Sentiment =====
-async function selectStock(symbol) {
+async function selectStock(symbol, event) {
     selectedSymbol = symbol;
 
     // Update card selection
     document.querySelectorAll('.holding-card').forEach(card => {
         card.classList.remove('selected');
     });
-    event.currentTarget.classList.add('selected');
+    if (event?.currentTarget) {
+        event.currentTarget.classList.add('selected');
+    }
 
     // Load news
     showLoading(`Analyzing ${symbol} news...`);
@@ -325,11 +429,10 @@ function renderNews(data) {
 
     // Overall sentiment
     const sentiment = data.overall_sentiment || 'neutral';
-    const sentimentEmoji = sentiment === 'bullish' ? '🟢' : sentiment === 'bearish' ? '🔴' : '🟡';
     const sentimentText = sentiment.charAt(0).toUpperCase() + sentiment.slice(1);
 
     sentimentBadge.className = `sentiment-badge ${sentiment}`;
-    sentimentBadge.textContent = `${sentimentEmoji} ${sentimentText} (${data.sentiment_score?.toFixed(2) || 0})`;
+    sentimentBadge.textContent = `${sentimentText} (${(data.sentiment_score || 0).toFixed(2)})`;
 
     // News items
     if (!data.news || data.news.length === 0) {
@@ -340,7 +443,6 @@ function renderNews(data) {
     newsList.innerHTML = data.news.map(article => {
         const s = article.sentiment || {};
         const sentimentClass = s.sentiment || 'neutral';
-        const sentimentIcon = sentimentClass === 'bullish' ? '📈' : sentimentClass === 'bearish' ? '📉' : '➡️';
 
         return `
             <div class="news-item">
@@ -350,9 +452,9 @@ function renderNews(data) {
                         <a href="${article.url}" target="_blank">${article.title}</a>
                     </div>
                     <div class="news-meta">
-                        <span>${article.source} • ${article.published || 'Recently'}</span>
+                        <span>${article.source} • ${formatNewsTime(article.published_at, article.published || 'Recently')}</span>
                         <span class="news-sentiment ${sentimentClass}">
-                            ${sentimentIcon} ${s.reason || sentimentClass}
+                            ${s.reason || sentimentClass}
                         </span>
                     </div>
                 </div>
@@ -368,6 +470,51 @@ function formatCurrency(value) {
         style: 'currency',
         currency: 'USD'
     }).format(value);
+}
+
+function formatSignedPercent(value) {
+    const number = Number(value) || 0;
+    return `${number >= 0 ? '+' : ''}${number.toFixed(2)}%`;
+}
+
+function formatNewsTime(isoTimestamp, fallback = '') {
+    if (!isoTimestamp) return fallback || '';
+
+    const publishedAt = new Date(isoTimestamp);
+    if (Number.isNaN(publishedAt.getTime())) {
+        return fallback || '';
+    }
+
+    const now = new Date();
+    const diffMs = now.getTime() - publishedAt.getTime();
+    const futureGraceMs = 5 * 60 * 1000;
+
+    if (diffMs < -futureGraceMs) return 'Just now';
+    if (diffMs < 60 * 1000) return 'Just now';
+    if (diffMs < 60 * 60 * 1000) return `${Math.floor(diffMs / (60 * 1000))}m ago`;
+    if (diffMs < 24 * 60 * 60 * 1000) return `${Math.floor(diffMs / (60 * 60 * 1000))}h ago`;
+
+    return publishedAt.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function cleanSectorName(name) {
+    const cleaned = String(name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+    return cleaned || name || 'Sector';
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    })[char]);
 }
 
 // ===== Market News Feed Functions =====
@@ -393,7 +540,7 @@ async function loadMarketNews() {
             <a href="${item.link}" target="_blank" class="news-item">
                 <div class="news-source">${item.display_name}</div>
                 <div class="news-headline">${item.text}</div>
-                ${item.time ? `<div class="news-time">${item.time}</div>` : ''}
+                ${item.published_at || item.time ? `<div class="news-time">${formatNewsTime(item.published_at, item.time)}</div>` : ''}
             </a>
         `).join('');
 
@@ -401,7 +548,7 @@ async function loadMarketNews() {
         console.error('Error loading market news:', error);
         feedContainer.innerHTML = `
             <div class="feed-empty">
-                <p>⚠️ Could not load news</p>
+                <p>Could not load news</p>
                 <p class="hint">Check your connection</p>
             </div>
         `;
@@ -429,28 +576,28 @@ async function loadSectors() {
         grid.innerHTML = data.sectors.map((sector, index) => {
             const isPositive = sector.change_percent >= 0;
             const changeClass = isPositive ? 'positive' : 'negative';
-            const changeSign = isPositive ? '+' : '';
             const rank = index + 1;
             const isTopGainer = rank <= 3 && isPositive;
+            const sectorName = cleanSectorName(sector.name);
 
             return `
                 <div class="sector-card ${isTopGainer ? 'top-gainer' : ''} ${changeClass}">
                     ${isTopGainer ? `<div class="rank-badge">#${rank}</div>` : ''}
-                    <div class="sector-name">${sector.name}</div>
+                    <div class="sector-name">${sectorName}</div>
                     <div class="sector-symbol">${sector.symbol}</div>
                     <div class="sector-price">${formatCurrency(sector.price)}</div>
                     <div class="sector-metrics">
                         <div class="metric-box ${changeClass}">
                             <div class="metric-label">Today</div>
-                            <div class="metric-value">${changeSign}${sector.change_percent?.toFixed(2) || 0}%</div>
+                            <div class="metric-value">${formatSignedPercent(sector.change_percent)}</div>
                         </div>
                         <div class="metric-box ${sector.change_1w >= 0 ? 'positive' : 'negative'}">
                             <div class="metric-label">1W</div>
-                            <div class="metric-value">${sector.change_1w >= 0 ? '+' : ''}${sector.change_1w?.toFixed(2) || 0}%</div>
+                            <div class="metric-value">${formatSignedPercent(sector.change_1w)}</div>
                         </div>
                         <div class="metric-box ${sector.change_1m >= 0 ? 'positive' : 'negative'}">
                             <div class="metric-label">1M</div>
-                            <div class="metric-value">${sector.change_1m >= 0 ? '+' : ''}${sector.change_1m?.toFixed(2) || 0}%</div>
+                            <div class="metric-value">${formatSignedPercent(sector.change_1m)}</div>
                         </div>
                     </div>
                 </div>
@@ -461,7 +608,7 @@ async function loadSectors() {
         console.error('Error loading sectors:', error);
         grid.innerHTML = `
             <div class="feed-empty">
-                <p>⚠️ Could not load sectors</p>
+                <p>Could not load sectors</p>
                 <p class="hint">Check your connection</p>
             </div>
         `;
@@ -491,7 +638,7 @@ async function loadNews() {
                 <div class="news-source">${article.display_name}</div>
                 <div class="news-title">${article.text}</div>
                 <div class="news-meta">
-                    <span>${article.time || ''}</span>
+                    <span>${formatNewsTime(article.published_at, article.time || '')}</span>
                     <span class="news-symbols">${article.symbols || ''}</span>
                 </div>
             </div>
@@ -501,7 +648,7 @@ async function loadNews() {
         console.error('Error loading news:', error);
         container.innerHTML = `
             <div class="feed-empty">
-                <p>⚠️ Could not load news</p>
+                <p>Could not load news</p>
             </div>
         `;
     }
@@ -544,9 +691,9 @@ async function getPortfolioAnalysis() {
         content.innerHTML = `
             <p>${analysis}</p>
             <div class="analysis-meta">
-                <span>📊 ${data.holdings_count} holdings</span>
-                <span>📰 ${data.news_count} news items analyzed</span>
-                <span>🕐 ${new Date(data.generated_at).toLocaleTimeString()}</span>
+                <span>${data.holdings_count} holdings</span>
+                <span>${data.news_count} news items analyzed</span>
+                <span>${new Date(data.generated_at).toLocaleTimeString()}</span>
             </div>
         `;
 
@@ -554,7 +701,7 @@ async function getPortfolioAnalysis() {
         console.error('Error getting analysis:', error);
         content.innerHTML = `
             <div class="analysis-error">
-                <p>⚠️ Could not generate analysis</p>
+                <p>Could not generate analysis</p>
                 <p class="hint">Make sure GEMINI_API_KEY is set and you have holdings in your portfolio</p>
             </div>
         `;
@@ -566,7 +713,7 @@ async function loadMarketContext() {
     try {
         const response = await fetch(`${API_BASE}/api/market-context`);
         const data = await response.json();
-        console.log('📊 Market context loaded:', data.cached ? 'from cache' : 'fresh');
+        console.log('Market context loaded:', data.cached ? 'from cache' : 'fresh');
     } catch (error) {
         console.log('Market context pre-fetch failed (non-critical):', error);
     }

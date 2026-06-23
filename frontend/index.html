@@ -5,96 +5,185 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Portfolio Analyzer</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=parchment-ui-5">
 </head>
 
 <body>
     <div class="app-container">
-        <!-- Layout Container -->
-        <div class="content-layout">
-            <!-- Main Content -->
-            <main class="main-content">
-                <!-- Header with P&L -->
-                <header class="header">
-                    <div class="logo">
-                        <span class="logo-icon">📊</span>
-                        <h1>AI Portfolio Analyzer</h1>
-                    </div>
-                    <div class="portfolio-summary" id="portfolioSummary">
-                        <div class="summary-item">
-                            <span class="label">Total Value</span>
-                            <span class="value" id="totalValue">$0.00</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="label">Daily Change</span>
-                            <span class="value" id="dailyChange">$0.00</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="label">Total P/L</span>
-                            <span class="value" id="totalPL">$0.00</span>
-                        </div>
-                    </div>
-                </header>
+        <nav class="floating-nav" aria-label="Primary navigation">
+            <a class="brand" href="#">
+                <span class="brand-word">portfolio</span>
+                <span class="brand-accent" aria-hidden="true"></span>
+                <span class="brand-word">ai</span>
+            </a>
+            <div class="nav-links">
+                <a href="#holdings">Holdings</a>
+                <a href="#sectors">Sectors</a>
+                <a href="#market-news">News</a>
+            </div>
+            <button class="nav-cta" onclick="getPortfolioAnalysis()">Analyze</button>
+        </nav>
 
-                <!-- Add Stock Section -->
-                <section class="add-stock-section">
+        <section class="hero-panel">
+            <div class="hero-copy">
+                <p class="eyebrow">Live AI portfolio desk</p>
+                <h1>Portfolio signals without dashboard noise.</h1>
+                <p class="hero-lede">
+                    Track holdings, cost basis, sector momentum, and market headlines in one quiet console built for
+                    fast decisions.
+                </p>
+                <div class="hero-actions">
+                    <a class="pill-button filled" href="#add-stock">Add holding</a>
+                    <button class="pill-button outlined" onclick="getPortfolioAnalysis()">Ask Gemini</button>
+                </div>
+                <div class="partner-strip" aria-label="Data and intelligence sources">
+                    <span>Gemini AI</span>
+                    <span>Finnhub</span>
+                    <span>yfinance</span>
+                    <span>Market news</span>
+                </div>
+            </div>
+
+            <div class="dashboard-preview" aria-label="Portfolio overview">
+                <div class="preview-topbar">
+                    <div>
+                        <span class="preview-kicker">Portfolio workspace</span>
+                        <strong>Today’s read</strong>
+                    </div>
+                    <span class="live-pill">Live</span>
+                </div>
+
+                <div class="portfolio-summary" id="portfolioSummary">
+                    <div class="summary-item">
+                        <span class="label">Total Value</span>
+                        <span class="value" id="totalValue">$0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Daily Change</span>
+                        <span class="value" id="dailyChange">$0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Total P/L</span>
+                        <span class="value" id="totalPL">$0.00</span>
+                    </div>
+                </div>
+
+                <div class="preview-allocation-card">
+                    <div class="chart-heading">
+                        <span>Live allocation</span>
+                        <span id="allocationMeta">0 holdings</span>
+                    </div>
+                    <div class="allocation-list" id="previewAllocationList">
+                        <div class="allocation-empty">Add holdings to see live allocation.</div>
+                    </div>
+                </div>
+
+                <div class="preview-widgets">
+                    <div class="concentration-card">
+                        <div class="donut-ring" id="previewConcentrationRing" aria-hidden="true"></div>
+                        <div>
+                            <span class="widget-label">Largest holding</span>
+                            <strong id="previewLargestWeight">0%</strong>
+                            <span class="widget-note" id="previewLargestSymbol">No holdings</span>
+                        </div>
+                    </div>
+                    <div class="position-health-card">
+                        <span class="widget-label">Position health</span>
+                        <div class="health-bars" id="previewHealthBars">
+                            <div class="health-row">
+                                <span>Up today</span>
+                                <div class="health-track"><span id="previewUpBar"></span></div>
+                                <b id="previewUpCount">0</b>
+                            </div>
+                            <div class="health-row">
+                                <span>Down today</span>
+                                <div class="health-track"><span id="previewDownBar"></span></div>
+                                <b id="previewDownCount">0</b>
+                            </div>
+                            <div class="health-row">
+                                <span>Flat today</span>
+                                <div class="health-track"><span id="previewFlatBar"></span></div>
+                                <b id="previewFlatCount">0</b>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="content-layout">
+            <div class="main-content">
+                <section class="add-stock-section surface-panel" id="add-stock">
+                    <div class="section-heading">
+                        <span class="eyebrow">Position entry</span>
+                        <h2>Add a holding</h2>
+                    </div>
                     <div class="add-stock-form">
-                        <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL)"
-                            maxlength="10">
-                        <input type="number" id="sharesInput" placeholder="Shares" value="1" min="0.01" step="0.01">
-                        <input type="number" id="costInput" placeholder="Avg Cost ($)" min="0" step="0.01">
-                        <button id="addBtn" onclick="addStock()">
-                            <span>➕</span> Add to Portfolio
-                        </button>
+                        <input type="text" id="symbolInput" placeholder="Ticker, e.g. AAPL" maxlength="10"
+                            aria-label="Stock ticker">
+                        <input type="number" id="sharesInput" placeholder="Shares" value="1" min="0.01" step="0.01"
+                            aria-label="Shares">
+                        <input type="number" id="costInput" placeholder="Avg cost" min="0" step="0.01"
+                            aria-label="Average cost">
+                        <button id="addBtn" onclick="addStock()">Add to portfolio</button>
                     </div>
                 </section>
 
-                <!-- Holdings Grid -->
-                <section class="holdings-section">
+                <section class="holdings-section surface-panel" id="holdings">
                     <div class="holdings-header">
-                        <h2>📈 Your Holdings</h2>
-                        <button class="ai-analyze-btn" onclick="getPortfolioAnalysis()">
-                            <span>🤖</span> AI Analysis
-                        </button>
+                        <div class="section-heading">
+                            <span class="eyebrow">Portfolio ledger</span>
+                            <h2>Your holdings</h2>
+                        </div>
+                        <button class="ai-analyze-btn" onclick="getPortfolioAnalysis()">AI analysis</button>
                     </div>
 
-                    <!-- AI Analysis Display -->
                     <div class="ai-analysis-container" id="aiAnalysis" style="display: none;">
                         <div class="ai-analysis-header">
-                            <span>🤖 Gemini Analysis</span>
+                            <span>Gemini portfolio note</span>
                             <button class="close-btn"
-                                onclick="document.getElementById('aiAnalysis').style.display='none'">✕</button>
+                                onclick="document.getElementById('aiAnalysis').style.display='none'"
+                                aria-label="Close analysis">×</button>
                         </div>
                         <div class="ai-analysis-content" id="aiAnalysisContent">
                             Loading...
                         </div>
                     </div>
+
                     <div class="holdings-grid" id="holdingsGrid">
                         <div class="empty-state">
-                            <span class="empty-icon">📭</span>
+                            <span class="empty-icon">—</span>
                             <p>No stocks in your portfolio</p>
-                            <p class="hint">Add stocks above to get started!</p>
+                            <p class="hint">Add a ticker above to start the desk.</p>
                         </div>
                     </div>
                 </section>
 
-                <!-- News & Sentiment Section -->
-                <section class="news-section" id="newsSection" style="display: none;">
+                <section class="news-section surface-panel" id="newsSection" style="display: none;">
                     <div class="news-header">
-                        <h2>📰 News & AI Sentiment</h2>
+                        <div class="section-heading">
+                            <span class="eyebrow">Selected holding</span>
+                            <h2>News and AI sentiment</h2>
+                        </div>
                         <div class="sentiment-badge" id="overallSentiment"></div>
                     </div>
                     <div class="news-list" id="newsList"></div>
                 </section>
-            </main>
-            <!-- Sidebar with Sectors and News -->
+            </div>
+
             <aside class="main-sidebar">
-                <!-- Sectors Section -->
-                <div class="sidebar-section">
+                <div class="sidebar-section" id="sectors">
                     <div class="sidebar-header">
-                        <h3>🏆 Sectors</h3>
-                        <button class="refresh-btn" onclick="loadSectors()">🔄</button>
+                        <div>
+                            <span class="eyebrow">Market map</span>
+                            <h3>Sectors</h3>
+                        </div>
+                        <button class="refresh-btn" onclick="loadSectors()" aria-label="Refresh sectors">Refresh</button>
                     </div>
                     <div class="sectors-scroll" id="sectorsGrid">
                         <div class="feed-loading">
@@ -104,11 +193,13 @@
                     </div>
                 </div>
 
-                <!-- News Section -->
-                <div class="sidebar-section news-section-sidebar">
+                <div class="sidebar-section news-section-sidebar" id="market-news">
                     <div class="sidebar-header">
-                        <h3>📰 Live News</h3>
-                        <button class="refresh-btn" onclick="loadNews()">🔄</button>
+                        <div>
+                            <span class="eyebrow">Tape watch</span>
+                            <h3>Live news</h3>
+                        </div>
+                        <button class="refresh-btn" onclick="loadNews()" aria-label="Refresh news">Refresh</button>
                     </div>
                     <div class="news-scroll" id="newsScroll">
                         <div class="feed-loading">
@@ -120,20 +211,18 @@
             </aside>
         </div>
 
-        <!-- Footer -->
         <footer class="footer">
-            <p>Powered by Gemini AI • Stock data from Finnhub</p>
+            <p>Powered by Gemini AI. Stock data from Finnhub and yfinance.</p>
         </footer>
     </div>
 
-    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <p id="loadingText">Loading...</p>
     </div>
 
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=parchment-ui-5"></script>
 </body>
 
 </html>

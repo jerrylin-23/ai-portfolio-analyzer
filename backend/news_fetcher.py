@@ -3,7 +3,7 @@ News Fetcher - Using free news sources with fallback
 """
 import requests
 from typing import List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 
 
@@ -59,6 +59,7 @@ def get_stock_news(symbol: str, limit: int = 5) -> List[Dict]:
     # Fallback to mock news for demo
     if symbol in MOCK_NEWS:
         articles = MOCK_NEWS[symbol][:limit]
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         return [
             {
                 "title": a["title"],
@@ -66,6 +67,7 @@ def get_stock_news(symbol: str, limit: int = 5) -> List[Dict]:
                 "url": f"https://finance.yahoo.com/quote/{symbol}",
                 "source": a["source"],
                 "published": datetime.now().strftime('%Y-%m-%d %H:%M'),
+                "published_at": now_iso,
                 "thumbnail": None,
                 "is_mock": True
             }
@@ -80,6 +82,7 @@ def get_stock_news(symbol: str, limit: int = 5) -> List[Dict]:
             "url": f"https://finance.yahoo.com/quote/{symbol}",
             "source": "Market Update",
             "published": datetime.now().strftime('%Y-%m-%d %H:%M'),
+            "published_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "is_mock": True
         }
     ]
@@ -104,17 +107,26 @@ def _fetch_yahoo_news(symbol: str, limit: int = 5) -> List[Dict]:
     
     news = data.get('news', [])
     
-    return [
-        {
+    articles = []
+    for item in news[:limit]:
+        published_at = None
+        published = None
+        if item.get('providerPublishTime'):
+            published_dt = datetime.fromtimestamp(item.get('providerPublishTime', 0), tz=timezone.utc)
+            published_at = published_dt.isoformat().replace("+00:00", "Z")
+            published = published_dt.astimezone().strftime('%Y-%m-%d %H:%M')
+
+        articles.append({
             "title": item.get('title', ''),
             "summary": item.get('publisher', ''),
             "url": item.get('link', ''),
             "source": item.get('publisher', 'Unknown'),
-            "published": datetime.fromtimestamp(item.get('providerPublishTime', 0)).strftime('%Y-%m-%d %H:%M') if item.get('providerPublishTime') else None,
+            "published": published,
+            "published_at": published_at,
             "thumbnail": item.get('thumbnail', {}).get('resolutions', [{}])[0].get('url') if item.get('thumbnail') else None
-        }
-        for item in news[:limit]
-    ]
+        })
+
+    return articles
 
 
 def get_market_news(limit: int = 10) -> List[Dict]:
