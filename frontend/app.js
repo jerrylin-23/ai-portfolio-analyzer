@@ -808,6 +808,27 @@ function renderChartInstance(historyData, range) {
         window.portfolioChartInstance.destroy();
     }
     
+    // Calculate indices for clean timeline formatting
+    const dayChangeIndices = [];
+    const mondayIndices = [];
+    let lastDayStr = null;
+    let lastMondayStr = null;
+    
+    historyData.forEach((d, idx) => {
+        const date = new Date(d.timestamp);
+        const dayStr = date.toDateString();
+        if (dayStr !== lastDayStr) {
+            dayChangeIndices.push(idx);
+            lastDayStr = dayStr;
+        }
+        if (date.getDay() === 1) { // Monday
+            if (dayStr !== lastMondayStr) {
+                mondayIndices.push(idx);
+                lastMondayStr = dayStr;
+            }
+        }
+    });
+    
     const labels = historyData.map(d => formatChartDate(d.timestamp, range));
     const values = historyData.map(d => d.value);
     
@@ -892,7 +913,30 @@ function renderChartInstance(historyData, range) {
                             family: 'Inter',
                             size: 10
                         },
-                        maxTicksLimit: 6
+                        maxRotation: 0,
+                        minRotation: 0,
+                        autoSkip: range !== '1w',
+                        callback: function(value, index) {
+                            const dataIndex = value;
+                            if (dataIndex >= historyData.length) return '';
+                            const d = historyData[dataIndex];
+                            if (!d) return '';
+                            
+                            const date = new Date(d.timestamp);
+                            if (range === '1d') {
+                                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                            } else if (range === '1w') {
+                                if (dayChangeIndices.includes(dataIndex)) {
+                                    return date.toLocaleDateString([], { weekday: 'short' });
+                                }
+                                return '';
+                            } else {
+                                if (mondayIndices.includes(dataIndex) || dataIndex === 0 || dataIndex === historyData.length - 1) {
+                                    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                                }
+                                return '';
+                            }
+                        }
                     }
                 },
                 y: {
