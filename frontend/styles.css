@@ -296,17 +296,6 @@ a {
     box-shadow: var(--shadow-soft);
 }
 
-.dashboard-preview::before {
-    content: "";
-    position: absolute;
-    inset: 24px -16px auto auto;
-    width: 44%;
-    height: 52%;
-    border: 1px solid rgba(255, 104, 44, 0.22);
-    border-radius: var(--radius-card);
-    pointer-events: none;
-    transform: translateY(-18px);
-}
 
 .preview-topbar,
 .chart-heading,
@@ -1054,7 +1043,7 @@ a {
     flex-direction: column;
     gap: 9px;
     padding: 12px;
-    max-height: 525px;
+    max-height: 550px;
 }
 
 .sector-card {
